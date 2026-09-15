@@ -280,6 +280,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
         menu.addItem(settingsMenuItem())
+        add("About LineLight", #selector(showAbout), key: "")
 
         let login = add("Open at Login", #selector(toggleLaunchAtLogin), key: "")
         login.state = LaunchAtLogin.isEnabled ? .on : .off
@@ -393,6 +394,29 @@ final class StatusController: NSObject, NSMenuDelegate {
     @objc private func setBarMode(_ sender: NSMenuItem) {
         Settings.barMode = (sender.representedObject as? String) ?? "speed"
         render()
+    }
+
+    @objc private func showAbout() {
+        let credits = NSMutableAttributedString(
+            string: "A traffic light for your internet line.\n\n"
+                  + "Author:  Mok Yii Chek\n"
+                  + "Built with Claude (Anthropic)\n\n"
+                  + "github.com/mokyiichek/linelight\n"
+                  + "MIT licence",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 11),
+                .foregroundColor: NSColor.labelColor,
+            ])
+        let para = NSMutableParagraphStyle()
+        para.alignment = .center
+        credits.addAttribute(.paragraphStyle, value: para,
+                             range: NSRange(location: 0, length: credits.length))
+
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "LineLight",
+            .credits: credits,
+        ])
     }
 
     @objc private func toggleLaunchAtLogin() {
