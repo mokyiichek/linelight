@@ -106,6 +106,7 @@ Sources/
   PingTester.swift        ICMP via /sbin/ping, TCP handshake fallback
   LaunchAtLogin.swift     LaunchAgent plist management
   Settings.swift          UserDefaults-backed preferences
+Icon.png                  1024px source art; build.sh renders the .icns
 build.sh                  compiles Sources/ into LineLight.app
 ```
 

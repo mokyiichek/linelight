@@ -52,6 +52,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleVersion</key>               <string>$VERSION</string>
   <key>LSMinimumSystemVersion</key>        <string>12.0</string>
   <key>LSUIElement</key>                   <true/>
+  <key>CFBundleIconFile</key>              <string>AppIcon</string>
   <key>NSHighResolutionCapable</key>       <true/>
   <key>NSHumanReadableCopyright</key>      <string>© 2026 Mok Yii Chek · Built with Claude (Anthropic) · MIT</string>
 </dict>
@@ -59,6 +60,24 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 PLIST
 
 printf 'APPL????' > "$APP/Contents/PkgInfo"
+
+if [[ -f Icon.png ]]; then
+  echo "==> Building icon"
+  ICONSET="$BUILD/AppIcon.iconset"
+  rm -rf "$ICONSET"; mkdir -p "$ICONSET"
+  sips -z 16 16     Icon.png --out "$ICONSET/icon_16x16.png"      >/dev/null
+  sips -z 32 32     Icon.png --out "$ICONSET/icon_16x16@2x.png"   >/dev/null
+  sips -z 32 32     Icon.png --out "$ICONSET/icon_32x32.png"      >/dev/null
+  sips -z 64 64     Icon.png --out "$ICONSET/icon_32x32@2x.png"   >/dev/null
+  sips -z 128 128   Icon.png --out "$ICONSET/icon_128x128.png"    >/dev/null
+  sips -z 256 256   Icon.png --out "$ICONSET/icon_128x128@2x.png" >/dev/null
+  sips -z 256 256   Icon.png --out "$ICONSET/icon_256x256.png"    >/dev/null
+  sips -z 512 512   Icon.png --out "$ICONSET/icon_256x256@2x.png" >/dev/null
+  sips -z 512 512   Icon.png --out "$ICONSET/icon_512x512.png"    >/dev/null
+  cp Icon.png "$ICONSET/icon_512x512@2x.png"
+  iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
+  rm -rf "$ICONSET"
+fi
 
 echo "==> Signing (ad-hoc)"
 codesign --force --deep --sign - "$APP" 2>/dev/null || echo "   (skipped)"
@@ -84,6 +103,8 @@ if [[ "${1:-}" == "--install" ]]; then
   open -n "$DEST/$APP_NAME.app"
   sleep 3
   echo "==> Running: $(pgrep -fl "$APP_NAME" | tr '\n' ' ')"
+  # Leave no second copy lying around for Spotlight to index.
+  rm -rf "$BUILD"
   echo
   echo "$APP_NAME is now in your menu bar (top right)."
 fi
