@@ -15,23 +15,36 @@ private final class HeroView: NSView {
     }
 }
 
-/// A borderless button that looks and behaves like a web link.
-private final class LinkButton: NSButton {
+/// A plain text link — no bezel, no border, just the URL.
+private final class LinkLabel: NSTextField {
+    var onClick: (() -> Void)?
+
     override func resetCursorRects() {
         addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    // A non-selectable NSTextField normally refuses hits, so clicks would fall
+    // straight through to the window behind it.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        bounds.contains(convert(point, from: superview)) ? self : nil
+    }
+
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
+    override func mouseDown(with event: NSEvent) {
+        onClick?()
     }
 }
 
 /// A hand-built About window. macOS's `orderFrontStandardAboutPanel` renders
-/// its credits as flat, dead text — no clicking, no copying — so this replaces
-/// it with real controls.
+/// its credits as flat, dead text, so the repository link there can't be
+/// clicked — this replaces it.
 final class AboutPanel: NSObject {
 
     static let shared = AboutPanel()
     static let repoURL = "https://github.com/mokyiichek/linelight"
 
     private var window: NSWindow?
-    private var copyButton: NSButton?
 
     func show() {
         // Rebuilt each time so the intervals and thresholds shown are current.
@@ -45,7 +58,7 @@ final class AboutPanel: NSObject {
     // MARK: - Layout
 
     private func makeWindow() -> NSWindow {
-        let W: CGFloat = 460, H: CGFloat = 610, HERO: CGFloat = 212
+        let W: CGFloat = 460, H: CGFloat = 580, HERO: CGFloat = 212
 
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
                            styleMask: [.titled, .closable, .fullSizeContentView],
@@ -99,36 +112,18 @@ final class AboutPanel: NSObject {
         row(root, "Built with", "Claude (Anthropic)", W, y); y += 22
         row(root, "Licence", "MIT © 2026 Mok Yii Chek", W, y); y += 30
 
-        // ---- link + buttons ---------------------------------------------
-        let link = LinkButton(frame: NSRect(x: 32, y: y, width: W - 64, height: 18))
+        // ---- link ---------------------------------------------------------
+        let link = LinkLabel(labelWithString: Self.repoURL)
+        link.font = .systemFont(ofSize: 12)
+        link.textColor = .linkColor
+        link.alignment = .center
         link.isBordered = false
-        link.target = self
-        link.action = #selector(openRepo)
-        link.attributedTitle = NSAttributedString(
-            string: Self.repoURL,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 11.5),
-                .foregroundColor: NSColor.linkColor,
-                .underlineStyle: NSUnderlineStyle.single.rawValue,
-            ])
+        link.drawsBackground = false
+        link.isSelectable = false
         link.toolTip = "Open the repository on GitHub"
+        link.frame = NSRect(x: 32, y: y, width: W - 64, height: 18)
+        link.onClick = { [weak self] in self?.openRepo() }
         root.addSubview(link)
-        y += 30
-
-        let bw: CGFloat = 168, bh: CGFloat = 30, gap: CGFloat = 12
-        let startX = (W - (bw * 2 + gap)) / 2
-
-        let open = NSButton(title: "View on GitHub", target: self, action: #selector(openRepo))
-        open.bezelStyle = .rounded
-        open.keyEquivalent = "\r"
-        open.frame = NSRect(x: startX, y: y, width: bw, height: bh)
-        root.addSubview(open)
-
-        let copy = NSButton(title: "Copy Link", target: self, action: #selector(copyRepo))
-        copy.bezelStyle = .rounded
-        copy.frame = NSRect(x: startX + bw + gap, y: y, width: bw, height: bh)
-        root.addSubview(copy)
-        copyButton = copy
 
         return win
     }
@@ -180,16 +175,5 @@ final class AboutPanel: NSObject {
     @objc private func openRepo() {
         guard let u = URL(string: Self.repoURL) else { return }
         NSWorkspace.shared.open(u)
-    }
-
-    @objc private func copyRepo() {
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        pb.setString(Self.repoURL, forType: .string)
-
-        copyButton?.title = "Copied ✓"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak self] in
-            self?.copyButton?.title = "Copy Link"
-        }
     }
 }
