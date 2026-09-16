@@ -1,5 +1,14 @@
 import Foundation
 
+/// One completed measurement.
+struct SpeedResult {
+    let mbps: Double?
+    /// Where fast.com places this machine, from its IP.
+    let clientLocation: String?
+    /// The CDN edge the sample was pulled from.
+    let serverLocation: String?
+}
+
 /// Measures download throughput using Netflix's fast.com infrastructure.
 ///
 /// fast.com hands out a short-lived list of CDN target URLs from
@@ -18,7 +27,9 @@ final class SpeedTester: NSObject, URLSessionDataDelegate {
     private var firstByteAt: CFAbsoluteTime?
     private var lastByteAt: CFAbsoluteTime?
     private var finished = false
-    private var completion: ((Double?) -> Void)?
+    private var completion: ((SpeedResult) -> Void)?
+    private var clientLocation: String?
+    private var serverLocation: String?
 
     private let queue = OperationQueue()
 
@@ -29,12 +40,16 @@ final class SpeedTester: NSObject, URLSessionDataDelegate {
 
     // MARK: - Public
 
-    /// Runs a download test. Calls back on the main queue with Mbps, or nil if
-    /// the line looks dead / the test could not be completed.
-    func run(seconds: Double, completion: @escaping (Double?) -> Void) {
+    /// Runs a download test. Calls back on the main queue; `mbps` is nil if the
+    /// line looks dead or the test could not be completed.
+    func run(seconds: Double, completion: @escaping (SpeedResult) -> Void) {
         self.completion = completion
-        Self.fetchTargets { [weak self] urls in
-            guard let self = self else { return }
+        // Strong capture on purpose: nothing else holds this object until the
+        // URLSession is created in startDownload, and being deallocated here
+        // would mean the completion handler never fires.
+        Self.fetchTargets { urls, client, server in
+            self.clientLocation = client
+            self.serverLocation = server
             guard let urls = urls, !urls.isEmpty else {
                 self.finish(nil)
                 return
@@ -45,7 +60,7 @@ final class SpeedTester: NSObject, URLSessionDataDelegate {
 
     // MARK: - Target discovery
 
-    private static func fetchTargets(_ done: @escaping ([URL]?) -> Void) {
+    private static func fetchTargets(_ done: @escaping ([URL]?, String?, String?) -> Void) {
         resolveToken { token in
             var comps = URLComponents(string: "https://api.fast.com/netflix/speedtest/v2")!
             comps.queryItems = [
@@ -53,7 +68,7 @@ final class SpeedTester: NSObject, URLSessionDataDelegate {
                 URLQueryItem(name: "token", value: token),
                 URLQueryItem(name: "urlCount", value: "5"),
             ]
-            guard let url = comps.url else { done(nil); return }
+            guard let url = comps.url else { done(nil, nil, nil); return }
 
             var req = URLRequest(url: url)
             req.timeoutInterval = 12
@@ -62,10 +77,14 @@ final class SpeedTester: NSObject, URLSessionDataDelegate {
                     let data = data,
                     let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                     let targets = json["targets"] as? [[String: Any]]
-                else { done(nil); return }
+                else { done(nil, nil, nil); return }
+
+                let client = json["client"] as? [String: Any]
+                let clientLoc = place(client?["location"] as? [String: Any])
+                let serverLoc = place(targets.first?["location"] as? [String: Any])
 
                 let urls = targets.compactMap { $0["url"] as? String }.compactMap(URL.init(string:))
-                done(urls.isEmpty ? nil : urls)
+                done(urls.isEmpty ? nil : urls, clientLoc, serverLoc)
             }.resume()
         }
     }
@@ -95,6 +114,15 @@ final class SpeedTester: NSObject, URLSessionDataDelegate {
                 done(token)
             }.resume()
         }.resume()
+    }
+
+    /// "Kuala Lumpur, MY" from fast.com's {city, country} pair.
+    private static func place(_ dict: [String: Any]?) -> String? {
+        guard let dict = dict else { return nil }
+        let city = (dict["city"] as? String)?.trimmingCharacters(in: .whitespaces)
+        let country = (dict["country"] as? String)?.trimmingCharacters(in: .whitespaces)
+        let parts = [city, country].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: ", ")
     }
 
     private static func firstMatch(in text: String, pattern: String, group: Int = 0) -> String? {
@@ -171,7 +199,10 @@ final class SpeedTester: NSObject, URLSessionDataDelegate {
         session = nil
         let cb = completion
         completion = nil
-        DispatchQueue.main.async { cb?(mbps) }
+        let result = SpeedResult(mbps: mbps,
+                                 clientLocation: clientLocation,
+                                 serverLocation: serverLocation)
+        DispatchQueue.main.async { cb?(result) }
     }
 
     // MARK: - URLSessionDataDelegate

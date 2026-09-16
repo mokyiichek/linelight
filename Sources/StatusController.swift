@@ -44,6 +44,8 @@ final class StatusController: NSObject, NSMenuDelegate {
     private var lastPingCheck: Date?
     private var testing = false
     private var activeTest: SpeedTester?
+    private var clientLocation: String?
+    private var serverLocation: String?
     private var history: [Reading] = []
 
     // MARK: - Lifecycle
@@ -115,12 +117,14 @@ final class StatusController: NSObject, NSMenuDelegate {
         activeTest = tester                 // keep it alive for the whole test
 
         var settled = false
-        let settle: (Double?) -> Void = { [weak self] mbps in
+        let settle: (SpeedResult) -> Void = { [weak self] result in
             guard let self = self, !settled else { return }
             settled = true
             self.activeTest = nil
             self.testing = false
-            self.lastMbps = mbps
+            self.lastMbps = result.mbps
+            if let c = result.clientLocation { self.clientLocation = c }
+            if let s = result.serverLocation { self.serverLocation = s }
             self.lastSpeedCheck = Date()
             self.evaluate(record: true)
         }
@@ -128,7 +132,9 @@ final class StatusController: NSObject, NSMenuDelegate {
         tester.run(seconds: Settings.testSeconds) { settle($0) }
 
         // Watchdog — never leave the menu bar stuck showing "testing".
-        DispatchQueue.main.asyncAfter(deadline: .now() + 60) { settle(nil) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 60) {
+            settle(SpeedResult(mbps: nil, clientLocation: nil, serverLocation: nil))
+        }
     }
 
     @objc func checkNow() {
@@ -179,6 +185,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         d.set(lastMbps ?? -1, forKey: "lastMbps")
         d.set(lastPingMs ?? -1, forKey: "lastPingMs")
         d.set(Date().description, forKey: "lastUpdated")
+        d.set(clientLocation ?? "", forKey: "clientLocation")
+        d.set(serverLocation ?? "", forKey: "serverLocation")
         d.set(testing, forKey: "testing")
     }
 
@@ -247,6 +255,12 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(info(speedLine()))
         menu.addItem(info(pingLine()))
+        if let here = clientLocation {
+            menu.addItem(info("You:    \(here)"))
+        }
+        if let there = serverLocation {
+            menu.addItem(info("Server: \(there)"))
+        }
         menu.addItem(info(lastCheckLine()))
 
         menu.addItem(.separator())
@@ -256,6 +270,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         if !history.isEmpty {
             let item = NSMenuItem(title: "Recent Checks", action: nil, keyEquivalent: "")
             let sub = NSMenu()
+            sub.autoenablesItems = false     // these are readouts, not dead items
             let fmt = DateFormatter()
             fmt.dateFormat = "HH:mm"
             for r in history {
@@ -272,6 +287,7 @@ final class StatusController: NSObject, NSMenuDelegate {
                                     range: NSRange(location: 0, length: 1))
                 let line = NSMenuItem(title: text, action: nil, keyEquivalent: "")
                 line.attributedTitle = styled
+                line.isEnabled = true
                 sub.addItem(line)
             }
             item.submenu = sub
