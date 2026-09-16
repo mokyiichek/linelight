@@ -247,6 +247,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
     private func rebuildMenu() {
         menu.removeAllItems()
+        menu.autoenablesItems = false    // readout rows shouldn't render dimmed
 
         let header = NSMenuItem(title: testing ? "Testing…" : status.label, action: nil, keyEquivalent: "")
         header.attributedTitle = NSAttributedString(
@@ -255,15 +256,11 @@ final class StatusController: NSObject, NSMenuDelegate {
                          .foregroundColor: status.color])
         menu.addItem(header)
 
-        menu.addItem(info(speedLine()))
-        menu.addItem(info(pingLine()))
-        if let here = clientLocation {
-            menu.addItem(info("You:    \(here)"))
-        }
-        if let there = serverLocation {
-            menu.addItem(info("Server: \(there)"))
-        }
-        menu.addItem(info(lastCheckLine()))
+        menu.addItem(readout("Speed", speedValue()))
+        menu.addItem(readout("Ping", pingValue()))
+        if let here = clientLocation { menu.addItem(readout("You", here)) }
+        if let there = serverLocation { menu.addItem(readout("Server", there)) }
+        menu.addItem(readout("Last", lastCheckValue()))
 
         menu.addItem(.separator())
 
@@ -394,31 +391,34 @@ final class StatusController: NSObject, NSMenuDelegate {
         return root
     }
 
-    private func speedLine() -> String {
-        guard let m = lastMbps else { return "Speed:  no reading" }
-        return String(format: "Speed:  %.1f Mbps", m)
+    private func speedValue() -> String {
+        guard let m = lastMbps else { return "no reading" }
+        return String(format: "%.1f Mbps", m)
     }
 
-    private func pingLine() -> String {
-        guard let p = lastPingMs else { return "Ping:   unreachable" }
-        return "Ping:   \(Int(p.rounded())) ms  (\(Settings.pingHost))"
+    private func pingValue() -> String {
+        guard let p = lastPingMs else { return "unreachable" }
+        return "\(Int(p.rounded())) ms  (\(Settings.pingHost))"
     }
 
-    private func lastCheckLine() -> String {
+    private func lastCheckValue() -> String {
         let fmt = DateFormatter()
         fmt.dateFormat = "HH:mm:ss"
         let speed = lastSpeedCheck.map(fmt.string(from:)) ?? "—"
         let ping = lastPingCheck.map(fmt.string(from:)) ?? "—"
-        return "Last:   speed \(speed) · ping \(ping)"
+        return "speed \(speed) · ping \(ping)"
     }
 
-    private func info(_ text: String) -> NSMenuItem {
+    /// A readout row: label padded so the colons line up, full-strength text
+    /// rather than the dimmed look a disabled menu item gets.
+    private func readout(_ key: String, _ value: String) -> NSMenuItem {
+        let text = key.padding(toLength: 6, withPad: " ", startingAt: 0) + "  :  " + value
         let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
         item.attributedTitle = NSAttributedString(
             string: text,
-            attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular),
-                         .foregroundColor: NSColor.secondaryLabelColor])
-        item.isEnabled = false
+            attributes: [.font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
+                         .foregroundColor: NSColor.labelColor])
+        item.isEnabled = true
         return item
     }
 
