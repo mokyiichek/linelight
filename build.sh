@@ -14,6 +14,14 @@ VERSION="1.0.0"
 
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
+
+# If xcode-select points at Xcode.app and its licence has not been accepted,
+# every Command Line Tools shim (swiftc, git, clang) refuses to run. The
+# standalone Command Line Tools have no licence gate, so prefer them.
+if [[ -d /Library/Developer/CommandLineTools ]] && ! xcodebuild -version >/dev/null 2>&1; then
+  export DEVELOPER_DIR=/Library/Developer/CommandLineTools
+  echo "==> Using Command Line Tools toolchain ($DEVELOPER_DIR)"
+fi
 BUILD="$ROOT/build"
 APP="$BUILD/$APP_NAME.app"
 
