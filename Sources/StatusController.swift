@@ -273,14 +273,14 @@ final class StatusController: NSObject, NSMenuDelegate {
             let fmt = DateFormatter()
             fmt.dateFormat = "HH:mm"
             for r in history {
-                let speed = r.mbps.map { String(format: "%6.1f Mbps", $0) } ?? "   no line"
-                let ping = r.pingMs.map { String(format: "%4ld ms", Int($0.rounded())) } ?? "   —  "
+                let speed = rightAlign(r.mbps.map { String(format: "%.1f Mbps", $0) } ?? "no line", 11)
+                let ping = rightAlign(r.pingMs.map { "\(Int($0.rounded())) ms" } ?? "—", 7)
                 let where_ = r.location.map { "   \($0)" } ?? ""
                 let text = "●  \(fmt.string(from: r.date))   \(speed)   \(ping)\(where_)"
                 let styled = NSMutableAttributedString(
                     string: text,
                     attributes: [
-                        .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .regular),
+                        .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
                         .foregroundColor: NSColor.labelColor,
                     ])
                 styled.addAttribute(.foregroundColor, value: r.status.color,
@@ -407,6 +407,11 @@ final class StatusController: NSObject, NSMenuDelegate {
         let speed = lastSpeedCheck.map(fmt.string(from:)) ?? "—"
         let ping = lastPingCheck.map(fmt.string(from:)) ?? "—"
         return "speed \(speed) · ping \(ping)"
+    }
+
+    /// Pads on the left, so a column of numbers lines up on its right edge.
+    private func rightAlign(_ s: String, _ width: Int) -> String {
+        s.count >= width ? s : String(repeating: " ", count: width - s.count) + s
     }
 
     /// A readout row: label padded so the colons line up, full-strength text
