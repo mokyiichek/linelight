@@ -55,10 +55,83 @@ final class AboutPanel: NSObject {
         window?.makeKeyAndOrderFront(nil)
     }
 
+    // MARK: - Detail block
+
+    private struct Detail {
+        let key: String?          // nil = blank spacer line
+        let value: String
+        let color: NSColor?       // tint for the key only
+    }
+
+    private func details() -> [Detail] {
+        let g = Int(Settings.greenMbps)
+        let y = Int(Settings.yellowMbps)
+        let p = Int(Settings.slowPingMs)
+
+        return [
+            Detail(key: "Speed", value: "fast.com download · every \(Settings.speedIntervalMinutes) min", color: nil),
+            Detail(key: "Ping", value: "\(Settings.pingHost) · every \(Settings.pingIntervalSeconds) s", color: nil),
+            Detail(key: nil, value: "", color: nil),
+            Detail(key: "Green", value: "\(g) Mbps and above, ping \(p) ms or less", color: .systemGreen),
+            Detail(key: "Yellow", value: "\(y) to \(g) Mbps, or ping over \(p) ms", color: .systemYellow),
+            Detail(key: "Red", value: "unreachable, or under \(y) Mbps", color: .systemRed),
+            Detail(key: nil, value: "", color: nil),
+            Detail(key: "Author", value: "Mok Yii Chek", color: nil),
+            Detail(key: "Built with", value: "Claude (Anthropic)", color: nil),
+            Detail(key: "Licence", value: "MIT © 2026 Mok Yii Chek", color: nil),
+        ]
+    }
+
+    /// One attributed string with the colons lined up, so the whole block can
+    /// be selected and copied in a single drag.
+    private func detailText() -> NSAttributedString {
+        let rows = details()
+        let width = rows.compactMap { $0.key?.count }.max() ?? 0
+        let font = NSFont.monospacedSystemFont(ofSize: 11.5, weight: .regular)
+
+        let out = NSMutableAttributedString()
+        for (i, row) in rows.enumerated() {
+            if i > 0 { out.append(NSAttributedString(string: "\n")) }
+            guard let key = row.key else { continue }
+
+            let padded = key.padding(toLength: width, withPad: " ", startingAt: 0)
+            let keyPart = NSMutableAttributedString(
+                string: padded,
+                attributes: [.font: font, .foregroundColor: row.color ?? NSColor.secondaryLabelColor])
+            out.append(keyPart)
+            out.append(NSAttributedString(
+                string: "  :  ",
+                attributes: [.font: font, .foregroundColor: NSColor.tertiaryLabelColor]))
+            out.append(NSAttributedString(
+                string: row.value,
+                attributes: [.font: font, .foregroundColor: NSColor.labelColor]))
+        }
+
+        let para = NSMutableParagraphStyle()
+        para.lineSpacing = 4
+        out.addAttribute(.paragraphStyle, value: para,
+                         range: NSRange(location: 0, length: out.length))
+        return out
+    }
+
     // MARK: - Layout
 
     private func makeWindow() -> NSWindow {
-        let W: CGFloat = 460, H: CGFloat = 580, HERO: CGFloat = 212
+        let W: CGFloat = 470, HERO: CGFloat = 212
+
+        let block = NSTextField(labelWithAttributedString: detailText())
+        block.isSelectable = true
+        block.allowsEditingTextAttributes = true
+        block.isEditable = false
+        block.usesSingleLineMode = false
+        block.maximumNumberOfLines = 0
+        block.lineBreakMode = .byWordWrapping
+        block.cell?.wraps = true
+        block.cell?.isScrollable = false
+        block.preferredMaxLayoutWidth = W - 72
+        let blockH = ceil(block.intrinsicContentSize.height)
+
+        let H = HERO + 50 + 22 + blockH + 26 + 18 + 26
 
         let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: W, height: H),
                            styleMask: [.titled, .closable, .fullSizeContentView],
@@ -87,32 +160,19 @@ final class AboutPanel: NSObject {
              font: .systemFont(ofSize: 11), color: NSColor.white.withAlphaComponent(0.55))
 
         // ---- body -------------------------------------------------------
-        text(root, "A traffic light for your internet line.", x: 0, y: HERO + 20, w: W,
+        var y = HERO + 20
+        text(root, "A traffic light for your internet line.", x: 0, y: y, w: W,
              align: .center, font: .systemFont(ofSize: 13), color: .labelColor)
+        y = HERO + 50
 
-        rule(root, y: HERO + 50, w: W)
+        rule(root, y: y, w: W); y += 22
 
-        var y = HERO + 66
-        caption(root, "HOW IT CHECKS", y: y); y += 20
+        block.frame = NSRect(x: 36, y: y, width: W - 72, height: blockH)
+        root.addSubview(block)
+        y += blockH + 26
 
-        let mins = Settings.speedIntervalMinutes
-        let secs = Settings.pingIntervalSeconds
-        row(root, "Speed", "fast.com download · every \(mins) min", W, y); y += 22
-        row(root, "Ping", "\(Settings.pingHost) · every \(secs) s", W, y); y += 30
+        rule(root, y: y, w: W); y += 18
 
-        caption(root, "WHAT THE COLOURS MEAN", y: y); y += 20
-
-        let g = Int(Settings.greenMbps), ylw = Int(Settings.yellowMbps), sp = Int(Settings.slowPingMs)
-        row(root, "Green", "≥ \(g) Mbps and ping ≤ \(sp) ms", W, y, labelColor: .systemGreen); y += 22
-        row(root, "Yellow", "\(ylw)–\(g) Mbps, or ping over \(sp) ms", W, y, labelColor: .systemYellow); y += 22
-        row(root, "Red", "unreachable, or under \(ylw) Mbps", W, y, labelColor: .systemRed); y += 30
-
-        caption(root, "CREDITS", y: y); y += 20
-        row(root, "Author", "Mok Yii Chek", W, y); y += 22
-        row(root, "Built with", "Claude (Anthropic)", W, y); y += 22
-        row(root, "Licence", "MIT © 2026 Mok Yii Chek", W, y); y += 30
-
-        // ---- link ---------------------------------------------------------
         let link = LinkLabel(labelWithString: Self.repoURL)
         link.font = .systemFont(ofSize: 12)
         link.textColor = .linkColor
@@ -143,29 +203,8 @@ final class AboutPanel: NSObject {
         return l
     }
 
-    /// Right-aligned label, left-aligned value — a tidy two-column row.
-    private func row(_ parent: NSView, _ key: String, _ value: String,
-                     _ W: CGFloat, _ y: CGFloat, labelColor: NSColor = .secondaryLabelColor) {
-        text(parent, key, x: 32, y: y, w: 96, align: .right,
-             font: .systemFont(ofSize: 12), color: labelColor)
-        text(parent, value, x: 140, y: y, w: W - 172, align: .left,
-             font: .systemFont(ofSize: 12), color: .labelColor)
-    }
-
-    private func caption(_ parent: NSView, _ s: String, y: CGFloat) {
-        let l = NSTextField(labelWithAttributedString: NSAttributedString(
-            string: s,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 9, weight: .semibold),
-                .foregroundColor: NSColor.tertiaryLabelColor,
-                .kern: 0.9,
-            ]))
-        l.frame = NSRect(x: 32, y: y, width: 300, height: 12)
-        parent.addSubview(l)
-    }
-
     private func rule(_ parent: NSView, y: CGFloat, w: CGFloat) {
-        let line = NSBox(frame: NSRect(x: 32, y: y, width: w - 64, height: 1))
+        let line = NSBox(frame: NSRect(x: 36, y: y, width: w - 72, height: 1))
         line.boxType = .separator
         parent.addSubview(line)
     }

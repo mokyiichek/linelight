@@ -27,6 +27,7 @@ struct Reading {
     let mbps: Double?
     let pingMs: Double?
     let status: LineStatus
+    let location: String?
 }
 
 final class StatusController: NSObject, NSMenuDelegate {
@@ -169,7 +170,8 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         if record {
             history.insert(Reading(date: Date(), mbps: lastMbps,
-                                   pingMs: lastPingMs, status: newStatus), at: 0)
+                                   pingMs: lastPingMs, status: newStatus,
+                                   location: serverLocation), at: 0)
             if history.count > 24 { history.removeLast(history.count - 24) }
         }
 
@@ -274,9 +276,10 @@ final class StatusController: NSObject, NSMenuDelegate {
             let fmt = DateFormatter()
             fmt.dateFormat = "HH:mm"
             for r in history {
-                let speed = r.mbps.map { String(format: "%.1f Mbps", $0) } ?? "no line"
-                let ping = r.pingMs.map { "\(Int($0.rounded())) ms" } ?? "—"
-                let text = "●  \(fmt.string(from: r.date))   \(speed)   \(ping)"
+                let speed = r.mbps.map { String(format: "%6.1f Mbps", $0) } ?? "   no line"
+                let ping = r.pingMs.map { String(format: "%4ld ms", Int($0.rounded())) } ?? "   —  "
+                let where_ = r.location.map { "   \($0)" } ?? ""
+                let text = "●  \(fmt.string(from: r.date))   \(speed)   \(ping)\(where_)"
                 let styled = NSMutableAttributedString(
                     string: text,
                     attributes: [
@@ -350,11 +353,42 @@ final class StatusController: NSObject, NSMenuDelegate {
         sub.addItem(display)
 
         sub.addItem(.separator())
-        let thresholds = NSMenuItem(
-            title: "Green ≥ \(Int(Settings.greenMbps)) Mbps · Yellow ≥ \(Int(Settings.yellowMbps)) Mbps",
-            action: nil, keyEquivalent: "")
-        thresholds.isEnabled = false
-        sub.addItem(thresholds)
+
+        let green = NSMenuItem(title: "Green Above", action: nil, keyEquivalent: "")
+        let greenMenu = NSMenu()
+        for v in [10, 25, 50, 100, 200, 500] {
+            let i = NSMenuItem(title: "\(v) Mbps", action: #selector(setGreenMbps(_:)), keyEquivalent: "")
+            i.target = self
+            i.tag = v
+            i.state = Int(Settings.greenMbps) == v ? .on : .off
+            greenMenu.addItem(i)
+        }
+        green.submenu = greenMenu
+        sub.addItem(green)
+
+        let yellow = NSMenuItem(title: "Yellow Above", action: nil, keyEquivalent: "")
+        let yellowMenu = NSMenu()
+        for v in [1, 2, 5, 10, 20, 50] {
+            let i = NSMenuItem(title: "\(v) Mbps", action: #selector(setYellowMbps(_:)), keyEquivalent: "")
+            i.target = self
+            i.tag = v
+            i.state = Int(Settings.yellowMbps) == v ? .on : .off
+            yellowMenu.addItem(i)
+        }
+        yellow.submenu = yellowMenu
+        sub.addItem(yellow)
+
+        let slow = NSMenuItem(title: "Slow Ping Above", action: nil, keyEquivalent: "")
+        let slowMenu = NSMenu()
+        for v in [50, 100, 150, 200, 300, 500] {
+            let i = NSMenuItem(title: "\(v) ms", action: #selector(setSlowPingMs(_:)), keyEquivalent: "")
+            i.target = self
+            i.tag = v
+            i.state = Int(Settings.slowPingMs) == v ? .on : .off
+            slowMenu.addItem(i)
+        }
+        slow.submenu = slowMenu
+        sub.addItem(slow)
 
         root.submenu = sub
         return root
@@ -406,6 +440,28 @@ final class StatusController: NSObject, NSMenuDelegate {
     @objc private func setPingInterval(_ sender: NSMenuItem) {
         Settings.pingIntervalSeconds = sender.tag
         scheduleTimers()
+    }
+
+    @objc private func setGreenMbps(_ sender: NSMenuItem) {
+        Settings.greenMbps = Double(sender.tag)
+        // Green has to sit above yellow, or yellow can never be reached.
+        if Settings.yellowMbps >= Settings.greenMbps {
+            Settings.yellowMbps = max(1, Settings.greenMbps / 5)
+        }
+        evaluate(record: false)
+    }
+
+    @objc private func setYellowMbps(_ sender: NSMenuItem) {
+        Settings.yellowMbps = Double(sender.tag)
+        if Settings.yellowMbps >= Settings.greenMbps {
+            Settings.greenMbps = Settings.yellowMbps * 5
+        }
+        evaluate(record: false)
+    }
+
+    @objc private func setSlowPingMs(_ sender: NSMenuItem) {
+        Settings.slowPingMs = Double(sender.tag)
+        evaluate(record: false)
     }
 
     @objc private func setBarMode(_ sender: NSMenuItem) {
