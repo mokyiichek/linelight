@@ -28,6 +28,7 @@ struct Reading {
     let pingMs: Double?
     let status: LineStatus
     let location: String?
+    let network: String?
 }
 
 final class StatusController: NSObject, NSMenuDelegate {
@@ -47,6 +48,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     private var activeTest: SpeedTester?
     private var clientLocation: String?
     private var serverLocation: String?
+    private var networkName: String?
     private var history: [Reading] = []
 
     // MARK: - Lifecycle
@@ -62,13 +64,27 @@ final class StatusController: NSObject, NSMenuDelegate {
             self, selector: #selector(systemDidWake),
             name: NSWorkspace.didWakeNotification, object: nil)
 
+        refreshNetworkName()
         runPing()
         runSpeedTest()
     }
 
     @objc private func systemDidWake() {
+        refreshNetworkName()
         runPing()
         runSpeedTest()
+    }
+
+    /// Shelling out costs a few milliseconds, so it happens off the main queue
+    /// and only as often as the ping.
+    private func refreshNetworkName() {
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let name = NetworkInfo.current()
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.networkName = name
+            }
+        }
     }
 
     private func scheduleTimers() {
@@ -96,6 +112,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             guard let self = self else { return }
             self.lastPingMs = result.milliseconds
             self.lastPingCheck = Date()
+            self.refreshNetworkName()
             if !result.reachable {
                 self.lastMbps = nil          // a dead line invalidates the old number
             }
@@ -171,7 +188,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         if record {
             history.insert(Reading(date: Date(), mbps: lastMbps,
                                    pingMs: lastPingMs, status: newStatus,
-                                   location: serverLocation), at: 0)
+                                   location: serverLocation, network: networkName), at: 0)
             if history.count > 24 { history.removeLast(history.count - 24) }
         }
 
@@ -189,6 +206,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         d.set(Date().description, forKey: "lastUpdated")
         d.set(clientLocation ?? "", forKey: "clientLocation")
         d.set(serverLocation ?? "", forKey: "serverLocation")
+        d.set(networkName ?? "", forKey: "networkName")
         d.set(testing, forKey: "testing")
     }
 
@@ -258,6 +276,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(readout("Speed", speedValue()))
         menu.addItem(readout("Ping", pingValue()))
+        if let net = networkName { menu.addItem(readout("Network", net)) }
         if let here = clientLocation { menu.addItem(readout("You", here)) }
         if let there = serverLocation { menu.addItem(readout("Server", there)) }
         menu.addItem(readout("Last", lastCheckValue()))
@@ -275,8 +294,9 @@ final class StatusController: NSObject, NSMenuDelegate {
             for r in history {
                 let speed = rightAlign(r.mbps.map { String(format: "%.1f Mbps", $0) } ?? "no line", 11)
                 let ping = rightAlign(r.pingMs.map { "\(Int($0.rounded())) ms" } ?? "—", 7)
-                let where_ = r.location.map { "   \($0)" } ?? ""
-                let text = "●  \(fmt.string(from: r.date))   \(speed)   \(ping)\(where_)"
+                let net = leftAlign(r.network ?? "—", 14)
+                let where_ = r.location ?? ""
+                let text = "●  \(fmt.string(from: r.date))   \(speed)   \(ping)   \(net)   \(where_)"
                 let styled = NSMutableAttributedString(
                     string: text,
                     attributes: [
@@ -414,10 +434,17 @@ final class StatusController: NSObject, NSMenuDelegate {
         s.count >= width ? s : String(repeating: " ", count: width - s.count) + s
     }
 
+    /// Pads on the right and clips, so the column after it starts in one place.
+    private func leftAlign(_ s: String, _ width: Int) -> String {
+        if s.count == width { return s }
+        if s.count < width { return s + String(repeating: " ", count: width - s.count) }
+        return String(s.prefix(width - 1)) + "…"
+    }
+
     /// A readout row: label padded so the colons line up, full-strength text
     /// rather than the dimmed look a disabled menu item gets.
     private func readout(_ key: String, _ value: String) -> NSMenuItem {
-        let text = key.padding(toLength: 6, withPad: " ", startingAt: 0) + "  :  " + value
+        let text = key.padding(toLength: 7, withPad: " ", startingAt: 0) + "  :  " + value
         let item = NSMenuItem(title: text, action: nil, keyEquivalent: "")
         item.attributedTitle = NSAttributedString(
             string: text,
