@@ -294,7 +294,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             for r in history {
                 let speed = rightAlign(r.mbps.map { String(format: "%.1f Mbps", $0) } ?? "no line", 11)
                 let ping = rightAlign(r.pingMs.map { "\(Int($0.rounded())) ms" } ?? "—", 7)
-                let net = leftAlign(r.network ?? "—", 14)
+                let net = leftAlign(r.network ?? "—", 12)
                 let where_ = r.location ?? ""
                 let text = "●  \(fmt.string(from: r.date))   \(speed)   \(ping)   \(net)   \(where_)"
                 let styled = NSMutableAttributedString(

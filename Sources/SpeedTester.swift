@@ -116,13 +116,15 @@ final class SpeedTester: NSObject, URLSessionDataDelegate {
         }.resume()
     }
 
-    /// "Kuala Lumpur, MY" from fast.com's {city, country} pair.
+    /// Just the city from fast.com's {city, country} pair — the country code
+    /// adds length without telling you anything you didn't already know.
     private static func place(_ dict: [String: Any]?) -> String? {
         guard let dict = dict else { return nil }
-        let city = (dict["city"] as? String)?.trimmingCharacters(in: .whitespaces)
-        let country = (dict["country"] as? String)?.trimmingCharacters(in: .whitespaces)
-        let parts = [city, country].compactMap { $0 }.filter { !$0.isEmpty }
-        return parts.isEmpty ? nil : parts.joined(separator: ", ")
+        if let city = (dict["city"] as? String)?.trimmingCharacters(in: .whitespaces),
+           !city.isEmpty { return city }
+        if let country = (dict["country"] as? String)?.trimmingCharacters(in: .whitespaces),
+           !country.isEmpty { return country }
+        return nil
     }
 
     private static func firstMatch(in text: String, pattern: String, group: Int = 0) -> String? {
