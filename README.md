@@ -105,6 +105,7 @@ Sources/
   SpeedTester.swift       fast.com token discovery + parallel download sample
   PingTester.swift        ICMP via /sbin/ping, TCP handshake fallback
   NetworkInfo.swift       Wi-Fi name, or the network service it falls back to
+  SpeedChartView.swift    the speed-over-time graph drawn into the menu
   LaunchAtLogin.swift     LaunchAgent plist management
   Settings.swift          UserDefaults-backed preferences
 Icon.png                  1024px source art; build.sh renders the .icns

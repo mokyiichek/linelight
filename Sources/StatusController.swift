@@ -1,6 +1,6 @@
 import Cocoa
 
-enum LineStatus {
+enum LineStatus: String, Codable {
     case unknown, down, slow, ok
 
     var color: NSColor {
@@ -22,7 +22,7 @@ enum LineStatus {
     }
 }
 
-struct Reading {
+struct Reading: Codable {
     let date: Date
     let mbps: Double?
     let pingMs: Double?
@@ -54,6 +54,7 @@ final class StatusController: NSObject, NSMenuDelegate {
     // MARK: - Lifecycle
 
     func start() {
+        loadHistory()
         menu.delegate = self
         statusItem.menu = menu
         render()
@@ -190,10 +191,25 @@ final class StatusController: NSObject, NSMenuDelegate {
                                    pingMs: lastPingMs, status: newStatus,
                                    location: serverLocation, network: networkName), at: 0)
             if history.count > 24 { history.removeLast(history.count - 24) }
+            saveHistory()
         }
 
         persistState()
         render()
+    }
+
+    /// History survives restarts and rebuilds, so the graph isn't blank each
+    /// time the app relaunches.
+    private func saveHistory() {
+        if let data = try? JSONEncoder().encode(history) {
+            UserDefaults.standard.set(data, forKey: "history")
+        }
+    }
+
+    private func loadHistory() {
+        guard let data = UserDefaults.standard.data(forKey: "history"),
+              let saved = try? JSONDecoder().decode([Reading].self, from: data) else { return }
+        history = Array(saved.prefix(24))
     }
 
     /// Mirrors the current reading into UserDefaults, so the last known state
@@ -281,6 +297,8 @@ final class StatusController: NSObject, NSMenuDelegate {
         if let there = serverLocation { menu.addItem(readout("Server", there)) }
         menu.addItem(readout("Last", lastCheckValue()))
 
+        menu.addItem(.separator())
+        menu.addItem(chartItem())
         menu.addItem(.separator())
 
         add("Check Now", #selector(checkNow), key: "r")
@@ -427,6 +445,17 @@ final class StatusController: NSObject, NSMenuDelegate {
         let speed = lastSpeedCheck.map(fmt.string(from:)) ?? "—"
         let ping = lastPingCheck.map(fmt.string(from:)) ?? "—"
         return "speed \(speed) · ping \(ping)"
+    }
+
+    private func chartItem() -> NSMenuItem {
+        let chart = SpeedChartView(frame: NSRect(origin: .zero, size: SpeedChartView.size))
+        chart.autoresizingMask = [.width]
+        chart.readings = history.reversed()          // oldest on the left
+        chart.greenMbps = Settings.greenMbps
+        chart.yellowMbps = Settings.yellowMbps
+        let item = NSMenuItem()
+        item.view = chart
+        return item
     }
 
     /// Pads on the left, so a column of numbers lines up on its right edge.
