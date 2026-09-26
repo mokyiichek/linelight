@@ -54,6 +54,13 @@ enum PingTester {
         return Double(out[r])
     }
 
+    /// Cheap liveness check for the fast watch — a TCP handshake, no process
+    /// spawn, no ICMP. Says nothing about latency, only whether anything is
+    /// answering out there.
+    static func reachableQuickly(host: String, timeout: Int) -> Bool {
+        tcpHandshake(host: host, port: 443, timeout: timeout) != nil
+    }
+
     // MARK: - TCP fallback
 
     private static func tcpHandshake(host: String, port: UInt16, timeout: Int) -> Double? {

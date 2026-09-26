@@ -13,6 +13,8 @@ enum Settings {
         static let slowPingMs     = "slowPingMs"
         static let barMode        = "barMode"      // "speed" | "ping" | "none"
         static let testSeconds    = "testSeconds"
+        static let watchInterval  = "watchIntervalSeconds"
+        static let flashWhenDown  = "flashWhenDown"
     }
 
     static func registerDefaults() {
@@ -25,6 +27,8 @@ enum Settings {
             Key.slowPingMs: 150.0,     // ping above this downgrades green -> yellow
             Key.barMode: "speed",
             Key.testSeconds: 8.0,      // how long the download sample runs
+            Key.watchInterval: 3,      // fast liveness probe; 0 turns it off
+            Key.flashWhenDown: true,   // blink the dot while the line is down
         ])
     }
 
@@ -61,6 +65,16 @@ enum Settings {
     static var barMode: String {
         get { d.string(forKey: Key.barMode) ?? "speed" }
         set { d.set(newValue, forKey: Key.barMode) }
+    }
+
+    static var watchIntervalSeconds: Int {
+        get { d.integer(forKey: Key.watchInterval) }
+        set { d.set(newValue, forKey: Key.watchInterval) }
+    }
+
+    static var flashWhenDown: Bool {
+        get { d.bool(forKey: Key.flashWhenDown) }
+        set { d.set(newValue, forKey: Key.flashWhenDown) }
     }
 
     static var testSeconds: Double {

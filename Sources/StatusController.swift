@@ -51,6 +51,10 @@ final class StatusController: NSObject, NSMenuDelegate {
     private var networkName: String?
     private var history: [Reading] = []
 
+    private let watcher = LinkWatcher()
+    private var blinkTimer: Timer?
+    private var blinkOn = true
+
     // MARK: - Lifecycle
 
     func start() {
@@ -65,9 +69,57 @@ final class StatusController: NSObject, NSMenuDelegate {
             self, selector: #selector(systemDidWake),
             name: NSWorkspace.didWakeNotification, object: nil)
 
+        startWatching()
         refreshNetworkName()
         runPing()
         runSpeedTest()
+    }
+
+    // MARK: - Fast watch
+
+    private func startWatching() {
+        watcher.host = Settings.pingHost
+        watcher.interval = Settings.watchIntervalSeconds
+        watcher.onChange = { [weak self] reachable in
+            self?.linkChanged(reachable: reachable)
+        }
+        watcher.start()
+    }
+
+    /// The watch only ever says up or down. Down is applied straight away so
+    /// the menu bar reacts within seconds; coming back triggers a real ping and
+    /// a fresh speed reading.
+    private func linkChanged(reachable: Bool) {
+        if reachable {
+            runPing()
+            runSpeedTest()
+        } else {
+            lastPingMs = nil
+            lastMbps = nil
+            lastPingCheck = Date()
+            evaluate(record: false)
+        }
+    }
+
+    /// While the line is down the dot pulses, so it catches the eye without
+    /// needing the menu open.
+    private func updateBlink() {
+        let wanted = (status == .down) && Settings.flashWhenDown
+        if wanted {
+            guard blinkTimer == nil else { return }
+            blinkOn = true
+            let t = Timer.scheduledTimer(withTimeInterval: 0.6, repeats: true) { [weak self] _ in
+                guard let self = self else { return }
+                self.blinkOn.toggle()
+                self.render()
+            }
+            t.tolerance = 0.1
+            blinkTimer = t
+        } else {
+            blinkTimer?.invalidate()
+            blinkTimer = nil
+            if !blinkOn { blinkOn = true; render() }
+        }
     }
 
     @objc private func systemDidWake() {
@@ -196,6 +248,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         persistState()
         render()
+        updateBlink()
     }
 
     /// History survives restarts and rebuilds, so the graph isn't blank each
@@ -231,10 +284,13 @@ final class StatusController: NSObject, NSMenuDelegate {
     private func render() {
         guard let button = statusItem.button else { return }
 
+        var dotColor = testing ? NSColor.secondaryLabelColor : status.color
+        if status == .down && !blinkOn { dotColor = dotColor.withAlphaComponent(0.18) }
+
         let dot = NSMutableAttributedString(
             string: "●",
             attributes: [
-                .foregroundColor: testing ? NSColor.secondaryLabelColor : status.color,
+                .foregroundColor: dotColor,
                 .font: NSFont.systemFont(ofSize: 11),
                 .baselineOffset: 0.5,
             ])
@@ -292,6 +348,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         menu.addItem(readout("Speed", speedValue()))
         menu.addItem(readout("Ping", pingValue()))
+        menu.addItem(readout("Watch", watchValue()))
         if let net = networkName { menu.addItem(readout("Network", net)) }
         if let here = clientLocation { menu.addItem(readout("You", here)) }
         if let there = serverLocation { menu.addItem(readout("Server", there)) }
@@ -387,6 +444,24 @@ final class StatusController: NSObject, NSMenuDelegate {
         display.submenu = displayMenu
         sub.addItem(display)
 
+        let watch = NSMenuItem(title: "Watch For Drops", action: nil, keyEquivalent: "")
+        let watchMenu = NSMenu()
+        for v in [0, 2, 3, 5, 10, 30] {
+            let title = v == 0 ? "Off" : "Every \(v) seconds"
+            let i = NSMenuItem(title: title, action: #selector(setWatchInterval(_:)), keyEquivalent: "")
+            i.target = self
+            i.tag = v
+            i.state = Settings.watchIntervalSeconds == v ? .on : .off
+            watchMenu.addItem(i)
+        }
+        watch.submenu = watchMenu
+        sub.addItem(watch)
+
+        let flash = NSMenuItem(title: "Flash When Down", action: #selector(toggleFlash), keyEquivalent: "")
+        flash.target = self
+        flash.state = Settings.flashWhenDown ? .on : .off
+        sub.addItem(flash)
+
         sub.addItem(.separator())
 
         let green = NSMenuItem(title: "Green Above", action: nil, keyEquivalent: "")
@@ -437,6 +512,12 @@ final class StatusController: NSObject, NSMenuDelegate {
     private func pingValue() -> String {
         guard let p = lastPingMs else { return "unreachable" }
         return "\(Int(p.rounded())) ms  (\(Settings.pingHost))"
+    }
+
+    private func watchValue() -> String {
+        let secs = Settings.watchIntervalSeconds
+        guard secs > 0 else { return "off" }
+        return "every \(secs) s  ·  \(watcher.reachable ? "line up" : "line down")"
     }
 
     private func lastCheckValue() -> String {
@@ -501,6 +582,17 @@ final class StatusController: NSObject, NSMenuDelegate {
     @objc private func setPingInterval(_ sender: NSMenuItem) {
         Settings.pingIntervalSeconds = sender.tag
         scheduleTimers()
+    }
+
+    @objc private func setWatchInterval(_ sender: NSMenuItem) {
+        Settings.watchIntervalSeconds = sender.tag
+        watcher.interval = sender.tag
+        watcher.reschedule()
+    }
+
+    @objc private func toggleFlash() {
+        Settings.flashWhenDown = !Settings.flashWhenDown
+        updateBlink()
     }
 
     @objc private func setGreenMbps(_ sender: NSMenuItem) {

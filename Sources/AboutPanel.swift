@@ -71,6 +71,7 @@ final class AboutPanel: NSObject {
         return [
             Detail(key: "Speed", value: "fast.com download · every \(Settings.speedIntervalMinutes) min", color: nil),
             Detail(key: "Ping", value: "\(Settings.pingHost) · every \(Settings.pingIntervalSeconds) s", color: nil),
+            Detail(key: "Watch", value: watchLine(), color: nil),
             Detail(key: nil, value: "", color: nil),
             Detail(key: "Green", value: "\(g) Mbps and above, ping \(p) ms or less", color: .systemGreen),
             Detail(key: "Yellow", value: "\(y) to \(g) Mbps, or ping over \(p) ms", color: .systemYellow),
@@ -80,6 +81,11 @@ final class AboutPanel: NSObject {
             Detail(key: "Built with", value: "Claude (Anthropic)", color: nil),
             Detail(key: "Licence", value: "MIT © 2026 Mok Yii Chek", color: nil),
         ]
+    }
+
+    private func watchLine() -> String {
+        let s = Settings.watchIntervalSeconds
+        return s > 0 ? "liveness probe · every \(s) s" : "off"
     }
 
     /// One attributed string with the colons lined up, so the whole block can
