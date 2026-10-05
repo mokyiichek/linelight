@@ -69,23 +69,23 @@ final class AboutPanel: NSObject {
         let p = Int(Settings.slowPingMs)
 
         return [
-            Detail(key: "Speed", value: "fast.com download · every \(Settings.speedIntervalMinutes) min", color: nil),
-            Detail(key: "Ping", value: "\(Settings.pingHost) · every \(Settings.pingIntervalSeconds) s", color: nil),
+            Detail(key: "Speed", value: "fast.com · Every \(Settings.speedIntervalMinutes) min", color: nil),
+            Detail(key: "Ping", value: "\(Settings.pingHost) · Every \(Settings.pingIntervalSeconds) s", color: nil),
             Detail(key: "Watch", value: watchLine(), color: nil),
             Detail(key: nil, value: "", color: nil),
             Detail(key: "Green", value: "\(g) Mbps and above, ping \(p) ms or less", color: .systemGreen),
             Detail(key: "Yellow", value: "\(y) to \(g) Mbps, or ping over \(p) ms", color: .systemYellow),
-            Detail(key: "Red", value: "unreachable, or under \(y) Mbps", color: .systemRed),
+            Detail(key: "Red", value: "Unreachable, or under \(y) Mbps", color: .systemRed),
             Detail(key: nil, value: "", color: nil),
             Detail(key: "Author", value: "Mok Yii Chek", color: nil),
-            Detail(key: "Built with", value: "Claude (Anthropic)", color: nil),
+            Detail(key: "Built With", value: "Claude (Anthropic)", color: nil),
             Detail(key: "Licence", value: "MIT © 2026 Mok Yii Chek", color: nil),
         ]
     }
 
     private func watchLine() -> String {
         let s = Settings.watchIntervalSeconds
-        return s > 0 ? "liveness probe · every \(s) s" : "off"
+        return s > 0 ? "TCP probe · Every \(s) s" : "Off"
     }
 
     /// One attributed string with the colons lined up, so the whole block can

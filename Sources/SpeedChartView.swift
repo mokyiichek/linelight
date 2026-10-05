@@ -120,7 +120,7 @@ final class SpeedChartView: NSView {
 
         let values = readings.compactMap { $0.mbps }
         guard let lo = values.min(), let hi = values.max() else { return }
-        let summary = String(format: "low %.0f · high %.0f Mbps", lo, hi)
+        let summary = String(format: "Low %.0f · High %.0f Mbps", lo, hi)
         text(summary, at: NSPoint(x: plot.maxX, y: headerY + 1),
              font: small, color: .secondaryLabelColor, align: .right)
     }

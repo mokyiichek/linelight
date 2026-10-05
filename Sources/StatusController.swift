@@ -15,8 +15,8 @@ enum LineStatus: String, Codable {
     var label: String {
         switch self {
         case .unknown: return "Checking…"
-        case .down:    return "Line down"
-        case .slow:    return "Slow line"
+        case .down:    return "Line Down"
+        case .slow:    return "Slow Line"
         case .ok:      return "Line OK"
         }
     }
@@ -367,7 +367,7 @@ final class StatusController: NSObject, NSMenuDelegate {
             let fmt = DateFormatter()
             fmt.dateFormat = "HH:mm"
             for r in history {
-                let speed = rightAlign(r.mbps.map { String(format: "%.1f Mbps", $0) } ?? "no line", 11)
+                let speed = rightAlign(r.mbps.map { String(format: "%.1f Mbps", $0) } ?? "No Line", 11)
                 let ping = rightAlign(r.pingMs.map { "\(Int($0.rounded())) ms" } ?? "—", 7)
                 let net = leftAlign(r.network ?? "—", 12)
                 let where_ = r.location ?? ""
@@ -408,7 +408,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         let intervals = NSMenuItem(title: "Speed Test Every", action: nil, keyEquivalent: "")
         let intervalMenu = NSMenu()
         for m in [5, 10, 15, 30, 60] {
-            let i = NSMenuItem(title: "\(m) minutes", action: #selector(setSpeedInterval(_:)), keyEquivalent: "")
+            let i = NSMenuItem(title: "\(m) Minutes", action: #selector(setSpeedInterval(_:)), keyEquivalent: "")
             i.target = self
             i.tag = m
             i.state = Settings.speedIntervalMinutes == m ? .on : .off
@@ -420,7 +420,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         let pings = NSMenuItem(title: "Ping Every", action: nil, keyEquivalent: "")
         let pingMenu = NSMenu()
         for s in [30, 60, 120, 300] {
-            let title = s < 60 ? "\(s) seconds" : "\(s / 60) minute\(s == 60 ? "" : "s")"
+            let title = s < 60 ? "\(s) Seconds" : "\(s / 60) Minute\(s == 60 ? "" : "s")"
             let i = NSMenuItem(title: title, action: #selector(setPingInterval(_:)), keyEquivalent: "")
             i.target = self
             i.tag = s
@@ -434,7 +434,7 @@ final class StatusController: NSObject, NSMenuDelegate {
 
         let display = NSMenuItem(title: "Menu Bar Shows", action: nil, keyEquivalent: "")
         let displayMenu = NSMenu()
-        for (key, title) in [("speed", "Speed (Mbps)"), ("ping", "Ping (ms)"), ("none", "Dot only")] {
+        for (key, title) in [("speed", "Speed (Mbps)"), ("ping", "Ping (ms)"), ("none", "Dot Only")] {
             let i = NSMenuItem(title: title, action: #selector(setBarMode(_:)), keyEquivalent: "")
             i.target = self
             i.representedObject = key
@@ -444,10 +444,10 @@ final class StatusController: NSObject, NSMenuDelegate {
         display.submenu = displayMenu
         sub.addItem(display)
 
-        let watch = NSMenuItem(title: "Watch For Drops", action: nil, keyEquivalent: "")
+        let watch = NSMenuItem(title: "Watch for Drops", action: nil, keyEquivalent: "")
         let watchMenu = NSMenu()
         for v in [0, 2, 3, 5, 10, 30] {
-            let title = v == 0 ? "Off" : "Every \(v) seconds"
+            let title = v == 0 ? "Off" : "Every \(v) Seconds"
             let i = NSMenuItem(title: title, action: #selector(setWatchInterval(_:)), keyEquivalent: "")
             i.target = self
             i.tag = v
@@ -505,19 +505,19 @@ final class StatusController: NSObject, NSMenuDelegate {
     }
 
     private func speedValue() -> String {
-        guard let m = lastMbps else { return "no reading" }
+        guard let m = lastMbps else { return "No Reading" }
         return String(format: "%.1f Mbps", m)
     }
 
     private func pingValue() -> String {
-        guard let p = lastPingMs else { return "unreachable" }
+        guard let p = lastPingMs else { return "Unreachable" }
         return "\(Int(p.rounded())) ms  (\(Settings.pingHost))"
     }
 
     private func watchValue() -> String {
         let secs = Settings.watchIntervalSeconds
-        guard secs > 0 else { return "off" }
-        return "every \(secs) s  ·  \(watcher.reachable ? "line up" : "line down")"
+        guard secs > 0 else { return "Off" }
+        return "Every \(secs) s  ·  \(watcher.reachable ? "Line Up" : "Line Down")"
     }
 
     private func lastCheckValue() -> String {
@@ -525,7 +525,7 @@ final class StatusController: NSObject, NSMenuDelegate {
         fmt.dateFormat = "HH:mm:ss"
         let speed = lastSpeedCheck.map(fmt.string(from:)) ?? "—"
         let ping = lastPingCheck.map(fmt.string(from:)) ?? "—"
-        return "speed \(speed) · ping \(ping)"
+        return "Speed \(speed) · Ping \(ping)"
     }
 
     private func chartItem() -> NSMenuItem {
